@@ -1,0 +1,5 @@
+{
+  "name": "AI 写作魔法师",
+  "description": "专为孩子设计的AI写作助手，利用Gemini 3 Pro分析题目，并生成Nano Banana Pro驱动的高清彩色思维导图。",
+  "requestFramePermissions": []
+}
