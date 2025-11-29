@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import InputSection from './components/InputSection';
 import ResultSection from './components/ResultSection';
 import { analyzeWritingTask, generateMindMapImage } from './services/geminiService';
@@ -7,6 +7,24 @@ import { GeneratedResult, LoadingState } from './types';
 const App: React.FC = () => {
   const [loadingState, setLoadingState] = useState<LoadingState>({ status: 'idle', message: '' });
   const [result, setResult] = useState<GeneratedResult | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio && await window.aistudio.hasSelectedApiKey()) {
+        setHasApiKey(true);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Assume success based on instructions to mitigate race condition
+      setHasApiKey(true);
+    }
+  };
 
   const handleAnalyze = async (text: string, image: string | undefined, mimeType: string | undefined) => {
     try {
@@ -14,13 +32,13 @@ const App: React.FC = () => {
       setLoadingState({ status: 'analyzing', message: 'Gemini 正在分析题目...' });
       const analysis = await analyzeWritingTask(text, image, mimeType);
 
-      // 2. Generate Basic Image
-      setLoadingState({ status: 'generating-basic', message: 'Nano Banana Pro 正在绘制基础思维导图...' });
-      const basicUrl = await generateMindMapImage(analysis, 'basic');
-
-      // 3. Generate Advanced Image
-      setLoadingState({ status: 'generating-advanced', message: 'Nano Banana Pro 正在绘制升级版导图...' });
-      const advancedUrl = await generateMindMapImage(analysis, 'advanced');
+      // 2. Generate Images in Parallel (Basic & Advanced)
+      setLoadingState({ status: 'generating-basic', message: 'Nano Banana Pro 正在绘制思维导图...' });
+      
+      const [basicUrl, advancedUrl] = await Promise.all([
+        generateMindMapImage(analysis, 'basic'),
+        generateMindMapImage(analysis, 'advanced')
+      ]);
 
       setResult({
         analysis,
@@ -29,9 +47,16 @@ const App: React.FC = () => {
       });
       setLoadingState({ status: 'complete', message: '' });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setLoadingState({ status: 'error', message: '哎呀，生成出错了，请稍后再试！' });
+      if (error.message && error.message.includes("Requested entity was not found")) {
+        // Handle case where API key might be invalid/project not found
+        setHasApiKey(false);
+        setLoadingState({ status: 'idle', message: '' });
+        alert("API Key 似乎无效或未选择，请重新选择。");
+      } else {
+        setLoadingState({ status: 'error', message: '哎呀，生成出错了，请稍后再试！' });
+      }
     }
   };
 
@@ -39,6 +64,32 @@ const App: React.FC = () => {
     setResult(null);
     setLoadingState({ status: 'idle', message: '' });
   };
+
+  if (!hasApiKey) {
+    return (
+      <div className="min-h-screen bg-[url('https://www.transparenttextures.com/patterns/notebook.png')] bg-amber-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 md:p-12 rounded-3xl shadow-2xl max-w-lg w-full text-center border-4 border-amber-200">
+          <div className="text-6xl mb-6">✏️</div>
+          <h1 className="text-3xl md:text-4xl font-fun text-amber-600 mb-4">AI 写作魔法师</h1>
+          <p className="text-gray-600 mb-8 text-lg">
+            欢迎使用 AI 写作助手！为了使用 Nano Banana Pro 强大的绘图能力，我们需要您选择一个 API Key。
+          </p>
+          <button
+            onClick={handleSelectKey}
+            className="w-full py-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-xl font-bold text-xl shadow-lg hover:scale-105 transition-transform"
+          >
+            选择 API Key 开始使用 🚀
+          </button>
+          <p className="mt-4 text-xs text-gray-400">
+            请确保选择关联了计费项目的 API Key。<br/>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline hover:text-amber-500">
+              了解更多关于计费的信息
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[url('https://www.transparenttextures.com/patterns/notebook.png')] bg-amber-50">
@@ -56,9 +107,9 @@ const App: React.FC = () => {
       <main className="container mx-auto px-4 py-8 max-w-5xl">
         {loadingState.status === 'error' && (
            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded shadow-md" role="alert">
-              <p className="font-bold">Error</p>
+              <p className="font-bold">出错啦</p>
               <p>{loadingState.message}</p>
-              <button onClick={() => setLoadingState({status: 'idle', message: ''})} className="mt-2 text-sm underline">Try Again</button>
+              <button onClick={() => setLoadingState({status: 'idle', message: ''})} className="mt-2 text-sm underline">重试</button>
            </div>
         )}
 
@@ -72,7 +123,7 @@ const App: React.FC = () => {
                <div className="mt-4 w-full bg-gray-200 rounded-full h-2.5">
                  <div 
                     className="bg-amber-500 h-2.5 rounded-full transition-all duration-500" 
-                    style={{ width: loadingState.status === 'analyzing' ? '30%' : loadingState.status === 'generating-basic' ? '60%' : '90%' }}
+                    style={{ width: loadingState.status === 'analyzing' ? '30%' : '80%' }}
                  ></div>
                </div>
              </div>

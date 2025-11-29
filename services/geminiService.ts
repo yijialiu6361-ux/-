@@ -1,10 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { WritingTaskAnalysis } from "../types";
 
-// Initialize Gemini Client
-// Note: In a production environment, API calls should ideally be proxied through a backend
-// to keep the key secure, but for this client-side demo, we use the env variable directly.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to get a fresh client instance. 
+// This is crucial because the API_KEY might change or be set after the app loads.
+const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
  * Analyzes the user's input (text or image) to understand the writing task.
@@ -16,6 +15,7 @@ export const analyzeWritingTask = async (
   imageMimeType?: string
 ): Promise<WritingTaskAnalysis> => {
   
+  const ai = getAiClient();
   const model = "gemini-3-pro-preview";
   
   const parts: any[] = [];
@@ -81,30 +81,31 @@ export const generateMindMapImage = async (
   type: 'basic' | 'advanced'
 ): Promise<string> => {
   // Use gemini-3-pro-image-preview for high quality images as requested
+  const ai = getAiClient();
   const model = "gemini-3-pro-image-preview";
 
   let prompt = "";
   
-  const commonStyle = "High quality, colorful, cute hand-drawn illustration style, white background, educational poster design. Clear layout. Fun and engaging for children.";
+  const commonStyle = "Style: High quality, colorful, cute hand-drawn illustration style, white background, educational poster design. Clear layout. Fun and engaging for children.";
 
   if (type === 'basic') {
     prompt = `
       Create a cute, colorful mind map image for a children's writing task about "${analysis.topic}".
-      Center text: "${analysis.topic}" in large Chinese characters.
-      Branches showing the structure: ${analysis.structure.join(", ")}.
+      Central text: "${analysis.topic}" in large Chinese characters.
+      Draw visual branches showing the structure: ${analysis.structure.join(", ")}.
       Decorate with simple icons related to ${analysis.topic}.
-      Include these keywords visually: ${analysis.keywords.slice(0, 5).join(", ")}.
-      Style: ${commonStyle}. Simple and clean.
+      Include these keywords visually around the branches in Chinese: ${analysis.keywords.slice(0, 5).join(", ")}.
+      ${commonStyle} Simple and clean.
     `;
   } else {
     prompt = `
       Create a detailed, advanced mind map image for a children's writing task about "${analysis.topic}".
-      Center text: "${analysis.topic}".
-      Visual sections for structure: ${analysis.structure.join(" -> ")}.
+      Central text: "${analysis.topic}" in large Chinese characters.
+      Visual sections/branches for structure: ${analysis.structure.join(" -> ")}.
       Include bubble text boxes containing these sentences in Chinese:
-      ${analysis.sentences.join(" ")}.
+      ${analysis.sentences.join("; ")}.
       Make the text legible and clear.
-      Style: ${commonStyle}. Rich details, professional layout, vibrant colors.
+      ${commonStyle} Rich details, professional layout, vibrant colors.
     `;
   }
 
