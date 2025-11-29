@@ -16,10 +16,3 @@ export interface LoadingState {
   status: 'idle' | 'analyzing' | 'generating-basic' | 'generating-advanced' | 'complete' | 'error';
   message: string;
 }
-
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey(): Promise<boolean>;
-    openSelectKey(): Promise<void>;
-  }
-}

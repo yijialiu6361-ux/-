@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import InputSection from './components/InputSection';
 import ResultSection from './components/ResultSection';
 import { analyzeWritingTask, generateMindMapImage } from './services/geminiService';
@@ -7,24 +7,6 @@ import { GeneratedResult, LoadingState } from './types';
 const App: React.FC = () => {
   const [loadingState, setLoadingState] = useState<LoadingState>({ status: 'idle', message: '' });
   const [result, setResult] = useState<GeneratedResult | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(false);
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio && await window.aistudio.hasSelectedApiKey()) {
-        setHasApiKey(true);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Assume success based on instructions to mitigate race condition
-      setHasApiKey(true);
-    }
-  };
 
   const handleAnalyze = async (text: string, image: string | undefined, mimeType: string | undefined) => {
     try {
@@ -49,14 +31,7 @@ const App: React.FC = () => {
 
     } catch (error: any) {
       console.error(error);
-      if (error.message && error.message.includes("Requested entity was not found")) {
-        // Handle case where API key might be invalid/project not found
-        setHasApiKey(false);
-        setLoadingState({ status: 'idle', message: '' });
-        alert("API Key 似乎无效或未选择，请重新选择。");
-      } else {
-        setLoadingState({ status: 'error', message: '哎呀，生成出错了，请稍后再试！' });
-      }
+      setLoadingState({ status: 'error', message: '哎呀，生成出错了，请稍后再试！' });
     }
   };
 
@@ -64,32 +39,6 @@ const App: React.FC = () => {
     setResult(null);
     setLoadingState({ status: 'idle', message: '' });
   };
-
-  if (!hasApiKey) {
-    return (
-      <div className="min-h-screen bg-[url('https://www.transparenttextures.com/patterns/notebook.png')] bg-amber-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 md:p-12 rounded-3xl shadow-2xl max-w-lg w-full text-center border-4 border-amber-200">
-          <div className="text-6xl mb-6">✏️</div>
-          <h1 className="text-3xl md:text-4xl font-fun text-amber-600 mb-4">AI 写作魔法师</h1>
-          <p className="text-gray-600 mb-8 text-lg">
-            欢迎使用 AI 写作助手！为了使用 Nano Banana Pro 强大的绘图能力，我们需要您选择一个 API Key。
-          </p>
-          <button
-            onClick={handleSelectKey}
-            className="w-full py-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-xl font-bold text-xl shadow-lg hover:scale-105 transition-transform"
-          >
-            选择 API Key 开始使用 🚀
-          </button>
-          <p className="mt-4 text-xs text-gray-400">
-            请确保选择关联了计费项目的 API Key。<br/>
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline hover:text-amber-500">
-              了解更多关于计费的信息
-            </a>
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[url('https://www.transparenttextures.com/patterns/notebook.png')] bg-amber-50">
