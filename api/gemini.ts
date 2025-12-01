@@ -1,31 +1,47 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// NOTE: This file is designed to run in a Node.js environment (like Vercel Serverless Functions).
-// Ensure process.env.API_KEY is set in your deployment environment variables.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini Client
+// NOTE: process.env.API_KEY must be set in your Vercel/Netlify dashboard
+const apiKey = process.env.API_KEY;
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
-export default async function handler(req: Request) {
-  // Handle CORS Preflight if necessary (mostly for local dev proxies)
+/**
+ * Serverless function handler (Vercel compatible)
+ */
+export default async function handler(req: any, res: any) {
+  // 1. Handle CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      }
-    });
+    res.status(204).end();
+    return;
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: "Method Not Allowed" }), { 
-        status: 405,
-        headers: { 'Content-Type': 'application/json' }
-    });
+    res.status(405).json({ error: "Method Not Allowed" });
+    return;
+  }
+
+  if (!apiKey) {
+    console.error("API_KEY is missing");
+    res.status(500).json({ error: "Server misconfiguration: API_KEY missing" });
+    return;
   }
 
   try {
-    const body = await req.json();
+    // Vercel handles JSON parsing automatically, but safe parsing helps
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        res.status(400).json({ error: "Invalid JSON body" });
+        return;
+      }
+    }
+
     const { action } = body;
 
     if (action === 'analyze') {
@@ -84,19 +100,16 @@ export default async function handler(req: Request) {
       const text = response.text;
       if (!text) throw new Error("No analysis generated");
       
-      // Parse to ensure valid JSON before sending back
       const jsonResponse = JSON.parse(text);
-
-      return new Response(JSON.stringify(jsonResponse), {
-        headers: { 'Content-Type': 'application/json' }
-      });
+      res.status(200).json(jsonResponse);
 
     } else if (action === 'generate_image') {
       const { analysis, type } = body;
+      // Using Nano Banana Pro equivalent model
       const model = "gemini-3-pro-image-preview";
 
       let prompt = "";
-      
+      // Common style instruction
       const commonStyle = "Style: High quality, colorful, cute hand-drawn illustration style, white background, educational poster design. Clear layout. Fun and engaging for children.";
 
       if (type === 'basic') {
@@ -126,36 +139,31 @@ export default async function handler(req: Request) {
         config: {
           imageConfig: {
             aspectRatio: "4:3",
-            imageSize: "2K", 
+            imageSize: "1K", // 1K is standard for preview; can be upscaled if needed
           }
         }
       });
 
       let imageUrl = "";
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-          break;
+      if (response.candidates && response.candidates[0].content && response.candidates[0].content.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData) {
+            imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+            break;
+          }
         }
       }
 
       if (!imageUrl) throw new Error("No image generated");
 
-      return new Response(JSON.stringify({ imageUrl }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+      res.status(200).json({ imageUrl });
 
-    return new Response(JSON.stringify({ error: "Invalid action" }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-    });
+    } else {
+      res.status(400).json({ error: "Invalid action" });
+    }
 
   } catch (error: any) {
     console.error("API Error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Internal Server Error" }), { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-    });
+    res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 }
